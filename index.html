@@ -10,100 +10,300 @@
 
   <style>
     html, body { height:100%; margin:0; font-family: system-ui, -apple-system, Segoe UI, Roboto, sans-serif; }
-    #app { height:100%; display:flex; flex-direction:column; }
-    #topbar{
-      padding:10px; display:flex; gap:8px; flex-wrap:wrap; align-items:center;
-      border-bottom:1px solid #ddd;
-    }
-    button { padding:8px 10px; cursor:pointer; }
-    select { padding:7px 10px; }
-    #status { font-size: 13px; opacity: .85; }
-
-    #views { flex:1; position:relative; }
+    #views { height:100%; position:relative; }
     .view { position:absolute; inset:0; display:none; }
     .view.active { display:block; }
 
+    /* ---------- MAP VIEW ---------- */
     #map { height:100%; }
-    #family { padding:12px; overflow:auto; }
-    .row { display:flex; gap:12px; align-items:center; margin:10px 0; padding:10px; border:1px solid #ddd; }
-    .avatar { width:48px; height:48px; object-fit:contain; border:1px solid #ccc; }
-    .bars { flex:1; }
-    .barlabel { font-size:12px; opacity:.85; margin:4px 0 2px; }
-    .bar { height:10px; background:#eee; border:1px solid #ddd; }
-    .bar > div { height:100%; background:#333; width:50%; }
-
-    #backpackPanel{
-      position:absolute; right:10px; bottom:10px;
-      background: rgba(255,255,255,.9);
-      border:1px solid #ddd; padding:10px; min-width:180px;
-      z-index: 1000;
+    .floatBtn{
+      position:absolute; z-index:1000;
+      width:80px; height:80px;
+      display:flex; align-items:center; justify-content:center;
+      border:0; background: rgba(255,255,255,.92);
+      box-shadow: 0 6px 18px rgba(0,0,0,.22);
+      border-radius: 12px;
+      padding:0;
+    }
+    .floatBtn img{ width:80px; height:80px; object-fit:contain; }
+    #btnToFamily{ top:12px; left:12px; }
+    #backpackMini{
+      position:absolute; right:12px; bottom:12px;
+      z-index:1000;
+      background: rgba(255,255,255,.92);
+      border-radius: 12px;
+      padding:10px 12px;
+      min-width: 170px;
+      box-shadow: 0 6px 18px rgba(0,0,0,.22);
+      font-size: 13px;
+      line-height: 1.35;
     }
     #setupPanel{
-      position:absolute; left:10px; bottom:10px;
-      background: rgba(255,255,255,.9);
-      border:1px solid #ddd; padding:10px; max-width:320px;
-      z-index:1001;
+      position:absolute; left:12px; bottom:12px;
+      z-index:1000;
+      background: rgba(255,255,255,.92);
+      border-radius: 12px;
+      padding:10px 12px;
+      max-width: 320px;
+      box-shadow: 0 6px 18px rgba(0,0,0,.22);
+      display:none;
     }
-    .small { font-size: 12px; opacity: .8; }
-    .pill { display:inline-block; padding:3px 8px; border:1px solid #ccc; border-radius:999px; font-size:12px; }
+    .small{ font-size:12px; opacity:.8; }
+    #walkWrap{ display:none; margin-top:10px; }
+    select{ padding:6px 8px; }
+
+    /* ---------- FAMILY VIEW ---------- */
+    #viewFamily{
+      background: url("assets/forest.gif") center/cover no-repeat;
+      overflow:hidden;
+    }
+    #familyStage{
+      position:absolute; inset:0;
+    }
+
+    /* top buttons */
+    #btnAddMember{
+      position:absolute; top:12px; left:12px;
+      z-index: 10;
+      border:0; background: rgba(255,255,255,.92);
+      border-radius: 12px; padding:10px 12px;
+      box-shadow: 0 6px 18px rgba(0,0,0,.22);
+      font-weight:600;
+    }
+    #btnMoveHome{
+      position:absolute; top:12px; right:12px;
+      z-index: 10;
+      width:54px; height:54px;
+      border:0; border-radius:12px;
+      background: rgba(255,255,255,.92);
+      box-shadow: 0 6px 18px rgba(0,0,0,.22);
+      display:flex; align-items:center; justify-content:center;
+      padding:0;
+    }
+    #btnMoveHome img{ width:60px; height:60px; }
+
+    /* map button bottom-left */
+    #btnToMap{ 
+
+      left:12px; bottom:12px; }
+
+    /* log + fire 
+    #log{
+      position:absolute;
+      left:50%; top:46%;
+      transform: translate(-50%, -50%);
+      width:min(92vw, 720px);
+      height:120px;
+      background: url("assets/log.png") center/contain no-repeat;
+      pointer-events:none;
+      z-index: 1;
+    }*/
+    #fireDrop{
+      position:absolute;
+      left:50%; top:62%;
+      transform: translate(-50%, -50%);
+      width:120px; height:120px;
+      background: url("assets/fire.png") center/contain no-repeat;
+      z-index: 2;
+      filter: drop-shadow(0 10px 18px rgba(0,0,0,.35));
+    }
+    #fireHud{
+      position:absolute;
+      left:50%; top:70%;
+      transform: translate(-50%, 0);
+      z-index: 3;
+      background: rgba(255,255,255,.85);
+      border-radius: 10px;
+      padding:6px 10px;
+      font-size: 12px;
+    }
+
+    /* people */
+    .person{
+      position:absolute;
+      width:120px;
+      height:220px;
+      z-index: 5;
+      display:flex;
+      align-items:center;
+      justify-content:flex-start;
+      flex-direction:column;
+      gap:6px;
+      user-select:none;
+    }
+    .person .name{
+      color:white;
+      border-radius: 10px;
+      padding:4px 8px;
+      font-size: 12px;
+      font-weight: 600;
+    }
+    .person .avatar{
+      width:72px; height:110px;
+      background: url("assets/person.png") center/contain no-repeat;
+      
+    }
+    .bars{
+      width:110px;
+      
+      border-radius: 10px;
+      padding:6px;
+      font-size:12px;
+    }
+    .barline{ display:flex; justify-content:space-between; opacity:.85; }
+    .bar{
+      
+      height:10px;
+      background:#eee;
+      border-radius: 6px;
+      overflow:hidden;
+      margin-top:3px;
+    }
+    .fill{ height:100%; background:#2bff00; width:50%; }
+
+    /* backpack icon + overlay */
+    #btnBackpack{
+      position:absolute; right:12px; bottom:12px;
+      z-index: 20;
+      width:64px; height:64px;
+      border:0; border-radius: 14px;
+      background: rgba(255,255,255,.92);
+      box-shadow: 0 6px 18px rgba(0,0,0,.22);
+      display:flex; align-items:center; justify-content:center;
+      padding:0;
+    }
+    #btnBackpack img{ width:80px; height:80px; }
+
+    #bpOverlay{
+      position:absolute; inset:0;
+      background: rgba(0,0,0,.35);
+      display:none;
+      z-index: 30;
+    }
+    #bpPanel{
+      position:absolute;
+      right:12px; bottom:90px;
+      width:min(92vw, 380px);
+      max-height: 55vh;
+      overflow:auto;
+      background: rgba(255,255,255,.96);
+      border-radius: 14px;
+      box-shadow: 0 10px 30px rgba(0,0,0,.28);
+      padding:12px;
+    }
+    #bpHeader{
+      display:flex; justify-content:space-between; align-items:center;
+      margin-bottom:10px;
+    }
+    #bpHeader strong{ font-size:14px; }
+    #bpClose{
+      border:0; background:#eee; border-radius:10px; padding:6px 10px; cursor:pointer;
+    }
+    #bpGrid{
+      display:grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap:10px;
+    }
+    .bpItem{
+      border:1px solid #ddd;
+      border-radius: 12px;
+      padding:8px;
+      display:flex;
+      flex-direction:column;
+      align-items:center;
+      gap:6px;
+      background:#fff;
+      cursor: grab;
+      touch-action: none; /* helps pointer-drag on mobile */
+    }
+    .bpItem img{ width:52px; height:52px; object-fit:contain; }
+    .bpQty{
+      font-size:12px; opacity:.85;
+      background:#f1f1f1; border-radius:999px; padding:2px 8px;
+    }
+    .dropHint{
+      outline: 3px dashed rgba(255,255,255,.75);
+      outline-offset: 6px;
+    }
   </style>
 </head>
 <body>
-<div id="app">
-  <div id="topbar">
-    <button id="btnFamily">Family view</button>
-    <button id="btnMap">Go out and gather</button>
-    <button id="btnDeliver">Deliver backpack → family</button>
 
-    <label style="display:flex;align-items:center;gap:6px;">
-      Walk frequency:
-      <select id="walkFreq">
-        <option value="easy">Rarely (slow decay)</option>
-        <option value="normal" selected>Normal</option>
-        <option value="hard">Often (fast decay)</option>
-      </select>
-    </label>
+<div id="views">
+  <!-- MAP VIEW -->
+  <div id="viewMap" class="view">
+    <div id="map"></div>
 
-    <span id="status">…</span>
-  </div>
+    <button id="btnToFamily" class="floatBtn" title="Family view">
+      <img src="assets/familyview.png" alt="Family">
+    </button>
 
-  <div id="views">
-    <div id="viewMap" class="view active">
-      <div id="map"></div>
-
-      <div id="setupPanel">
-        <div><strong>Setup</strong></div>
-        <div class="small">1) Allow GPS. 2) Set home at your current location.</div>
-        <div style="height:8px"></div>
-        <button id="btnSetHomeHere">Set home here</button>
-        <span id="homeInfo" class="pill">Home: not set</span>
-        <div style="height:8px"></div>
-        <div class="small">Pickups respawn daily. Collected ones stay gone until tomorrow.</div>
-      </div>
-
-      <div id="backpackPanel">
-        <div><strong>Backpack</strong></div>
-        <div id="backpackCounts" class="small">Food: 0<br/>Fuel: 0</div>
-        <div class="small" style="margin-top:8px" id="spawnInfo"></div>
-      </div>
+    <div id="backpackMini">
+      <div><strong>Backpack</strong></div>
+      <div id="backpackCounts" class="small">…</div>
+      <div id="spawnInfo" class="small" style="margin-top:6px;"></div>
     </div>
 
-    <div id="viewFamily" class="view">
-      <div id="family">
-        <div style="display:flex; align-items:center; justify-content:space-between; gap:10px;">
-          <h3 style="margin:0;">Family</h3>
-
-          <div style="display:flex; gap:8px; align-items:center;">
-            <button id="btnMoveHome" title="Set home to your current position" style="padding:6px 8px;">
-              <img src="assets/housemove.png" alt="Move home" style="width:22px;height:22px;vertical-align:middle;">
-            </button>
-            <button id="btnAddMember">+ Add member</button>
+    <div id="setupPanel">
+      <div><strong>Home settings</strong></div>
+      <div class="small" style="margin-top:4px;">Click map (desktop) or use GPS (phone), then set home.</div>
+      <div style="margin-top:8px;">
+        <button id="btnSetHomeHere">Set home here</button>
+      </div>
+      <div id="walkWrap">
+        <div style="margin-top:10px;">
+          <label style="display:flex; align-items:center; gap:6px;">
+            Walk frequency:
+            <select id="walkFreq">
+              <option value="easy">Rarely (slow decay)</option>
+              <option value="normal" selected>Normal</option>
+              <option value="hard">Often (fast decay)</option>
+            </select>
+          </label>
+          <div class="small" style="margin-top:6px;">
+            Affects how quickly hunger/cold decrease with time-jump.
           </div>
         </div>
-
-        <div class="small" id="familyNote" style="margin-top:8px;"></div>
-        <div id="familyList" style="margin-top:10px;"></div>
       </div>
+    </div>
+  </div>
+
+  <!-- FAMILY VIEW -->
+  <div id="viewFamily" class="view active">
+    <div id="familyStage">
+      <button id="btnAddMember">+ Add person</button>
+
+      <button id="btnMoveHome" title="Home settings">
+        <img src="assets/housemove.png" alt="Home settings">
+      </button>
+
+      <button id="btnToMap" class="floatBtn" title="Map / Gather">
+        <img src="assets/map.png" alt="Map">
+      </button>
+
+    <!--  <div id="log"></div>-->
+
+      <div id="fireDrop" title="Drop fuel here"></div>
+      <div id="fireHud">Fire fuel: <span id="fireFuelVal">0</span></div>
+
+      <button id="btnBackpack" title="Backpack">
+        <img src="assets/backpack.png" alt="Backpack">
+      </button>
+
+      <div id="bpOverlay">
+        <div id="bpPanel">
+          <div id="bpHeader">
+            <strong>Backpack</strong>
+            <button id="bpClose">Close</button>
+          </div>
+          <div class="small" id="bpTip">Drag food onto a person. Drag fuel onto the fire.</div>
+          <div style="height:10px"></div>
+          <div id="bpGrid"></div>
+        </div>
+      </div>
+
+      <!-- people container -->
+      <div id="peopleLayer"></div>
     </div>
   </div>
 </div>

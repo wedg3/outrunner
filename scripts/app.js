@@ -1,37 +1,68 @@
 // scripts/app.js
-import { loadState, saveState, setWalkFreq, addFamilyMember } from "./state.js";
-import { applyTimeJump, deliverBackpack } from "./timejump.js";
+import { loadState, saveState, clamp, MAX_STAT, MAX_PEOPLE } from "./state.js";
+import { applyTimeJump } from "./timejump.js";
 import { loadSpawnTables, getDailyPickups, markCollected, todayKey } from "./spawns.js";
-import { setActiveView, withinHome, updateStatus, updateBackpack, renderFamily } from "./ui.js";
+import { loadCatalog, getItemDef } from "./contentStore.js";
 
 let st = loadState();
 
 const els = {
-  btnFamily: document.getElementById("btnFamily"),
-  btnMap: document.getElementById("btnMap"),
-  btnDeliver: document.getElementById("btnDeliver"),
-  btnSetHomeHere: document.getElementById("btnSetHomeHere"),
-  btnAddMember: document.getElementById("btnAddMember"),
-  walkFreq: document.getElementById("walkFreq"),
-  status: document.getElementById("status"),
-  homeInfo: document.getElementById("homeInfo"),
+  // view switch
+  btnToFamily: document.getElementById("btnToFamily"),
+  btnToMap: document.getElementById("btnToMap"),
+
+  // map view
+  mapEl: document.getElementById("map"),
   backpackCounts: document.getElementById("backpackCounts"),
   spawnInfo: document.getElementById("spawnInfo"),
-  familyList: document.getElementById("familyList"),
-    btnMoveHome: document.getElementById("btnMoveHome"),
-  familyNote: document.getElementById("familyNote")
+  setupPanel: document.getElementById("setupPanel"),
+  btnSetHomeHere: document.getElementById("btnSetHomeHere"),
+  walkFreq: document.getElementById("walkFreq"),
+  walkWrap: document.getElementById("walkWrap"),
 
+  // family view
+  btnAddMember: document.getElementById("btnAddMember"),
+  btnMoveHome: document.getElementById("btnMoveHome"),
+  peopleLayer: document.getElementById("peopleLayer"),
+  fireDrop: document.getElementById("fireDrop"),
+  fireFuelVal: document.getElementById("fireFuelVal"),
 
+  // backpack overlay
+  btnBackpack: document.getElementById("btnBackpack"),
+  bpOverlay: document.getElementById("bpOverlay"),
+  bpClose: document.getElementById("bpClose"),
+  bpGrid: document.getElementById("bpGrid")
 };
-
-els.walkFreq.value = st.walkFreq || "normal";
 
 let map, myMarker, homeMarker;
 let myPos = null;
-let lastMapClickPos = null; // { lat, lng } from map clicks (desktop-friendly)
-
+let lastMapClickPos = null;
 let pickupMarkers = new Map(); // id -> marker
 
+function setActiveView(id){
+  document.querySelectorAll(".view").forEach(v => v.classList.remove("active"));
+  document.getElementById(id).classList.add("active");
+}
+
+function showSetupPanel(show){
+  els.setupPanel.style.display = show ? "block" : "none";
+}
+
+function showWalkFreq(show){
+  els.walkWrap.style.display = show ? "block" : "none";
+}
+
+function getBestHomeCandidate(){
+  if (myPos) return { lat: myPos.lat, lng: myPos.lng };
+  if (lastMapClickPos) return { ...lastMapClickPos };
+  if (map){
+    const c = map.getCenter();
+    return { lat: c.lat, lng: c.lng };
+  }
+  return null;
+}
+
+// ---------- Map init ----------
 function initMap(){
   const start = st.home ? [st.home.lat, st.home.lng] : [59.33, 18.06];
   const startZoom = st.home ? 16 : 13;
@@ -43,105 +74,52 @@ function initMap(){
     attribution: "&copy; OpenStreetMap contributors"
   }).addTo(map);
 
-    map.on("click", (e) => {
-    lastMapClickPos = { lat: e.latlng.lat, lng: e.latlng.lng };
-    // quick feedback:
-    L.popup()
-      .setLatLng(e.latlng)
-      .setContent("Selected location")
-      .openOn(map);
-  });
-
-  // If home exists, don't auto-center to player on first GPS fix
-  if (st.home) {
+  if (st.home){
     st._centeredOnce = true;
     saveState(st);
   }
 
-  map.on("moveend", () => refreshPickups());
-}
-
-function showSetupPanel(show){
-  const el = document.getElementById("setupPanel");
-  if (!el) return;
-  el.style.display = show ? "block" : "none";
-}
-
-
-function getBestHomeCandidate(){
-  // Priority: GPS position, then last map click, then map center
-  if (myPos) return { lat: myPos.lat, lng: myPos.lng };
-  if (lastMapClickPos) return { ...lastMapClickPos };
-  if (map){
-    const c = map.getCenter();
-    return { lat: c.lat, lng: c.lng };
-  }
-  return null;
-}
-
-function setHomeUI(){
-  if (!st.home){
-    els.homeInfo.textContent = "Home: not set";
-    if (homeMarker){
-      map.removeLayer(homeMarker);
-      homeMarker = null;
-    }
-    return;
-  }
-
-  els.homeInfo.textContent = `Home: ${st.home.lat.toFixed(5)}, ${st.home.lng.toFixed(5)}`;
-
-  const homeIcon = L.icon({
-    iconUrl: "assets/home.png",
-    iconSize: [40, 40],       // tweak if needed
-    iconAnchor: [20, 40],     // bottom-center sits on location
-    popupAnchor: [0, -36]
+  map.on("click", (e) => {
+    lastMapClickPos = { lat: e.latlng.lat, lng: e.latlng.lng };
+    L.popup().setLatLng(e.latlng).setContent("Selected location").openOn(map);
   });
 
-  if (!homeMarker){
-    homeMarker = L.marker(
-      [st.home.lat, st.home.lng],
-      { icon: homeIcon, title: "Home" }
-    ).addTo(map);
-  } else {
-    homeMarker.setLatLng([st.home.lat, st.home.lng]);
-    homeMarker.setIcon(homeIcon); // ensures icon stays correct
-  }
+  map.on("moveend", () => refreshPickups());
 }
-
-
-
 
 function setMyMarker(){
   if (!myPos) return;
   if (!myMarker){
-    myMarker = L.circleMarker([myPos.lat, myPos.lng], {
-      radius: 8,
-      weight: 2
-    }).addTo(map);
+    myMarker = L.circleMarker([myPos.lat, myPos.lng], { radius: 8, weight: 2 }).addTo(map);
   } else {
     myMarker.setLatLng([myPos.lat, myPos.lng]);
   }
 }
 
-function clearPickupMarkers(){
-  for (const m of pickupMarkers.values()){
-    map.removeLayer(m);
+function setHomeMarker(){
+  if (!st.home){
+    if (homeMarker){ map.removeLayer(homeMarker); homeMarker = null; }
+    return;
   }
-  pickupMarkers.clear();
+  const homeIcon = L.icon({
+    iconUrl: "assets/home.png",
+    iconSize: [40, 40],
+    iconAnchor: [20, 40]
+  });
+  if (!homeMarker){
+    homeMarker = L.marker([st.home.lat, st.home.lng], { icon: homeIcon, title:"Home" }).addTo(map);
+  } else {
+    homeMarker.setLatLng([st.home.lat, st.home.lng]);
+    homeMarker.setIcon(homeIcon);
+  }
 }
 
+// ---------- Spawns ----------
 function refreshPickups(){
-  if (!st.home || !map) return;
-
-  // Daily spawns centered on home
+  if (!st.home) return;
   const pickups = getDailyPickups(st, 450);
+  els.spawnInfo.textContent = `Today: ${todayKey()}\nPickups remaining: ${pickups.length}`;
 
-  // Update info text
-  const key = todayKey();
-  els.spawnInfo.textContent = `Today: ${key}\nPickups remaining: ${pickups.length}`;
-
-  // Remove markers not in list
   const keep = new Set(pickups.map(p => p.id));
   for (const [id, marker] of pickupMarkers.entries()){
     if (!keep.has(id)){
@@ -150,203 +128,393 @@ function refreshPickups(){
     }
   }
 
-  // Add missing markers
   for (const p of pickups){
     if (pickupMarkers.has(p.id)) continue;
 
-    const icon = L.icon({
-      iconUrl: p.icon,
-      iconSize: [32, 32],
-      iconAnchor: [16, 16]
-    });
-
-    const marker = L.marker([p.lat, p.lng], { icon, title: p.kind }).addTo(map);
+    const icon = L.icon({ iconUrl: p.icon, iconSize:[32,32], iconAnchor:[16,16] });
+    const marker = L.marker([p.lat, p.lng], { icon, title: p.itemName || p.kind }).addTo(map);
     marker.on("click", () => collectPickup(p));
+    marker.on("touchstart", () => collectPickup(p));
     pickupMarkers.set(p.id, marker);
   }
 }
 
+function addToBackpack(itemId, qty=1){
+  st.backpack.items[itemId] = (st.backpack.items[itemId] || 0) + qty;
+  saveState(st);
+}
+
 function collectPickup(p){
-  // Require GPS position to collect, and a simple distance check to avoid “teleport clicking”
   if (!myPos) return;
 
   const d = L.latLng(myPos.lat, myPos.lng).distanceTo(L.latLng(p.lat, p.lng));
-  if (d > 35){
-    alert(`Too far away (${Math.round(d)}m). Walk closer.`);
-    return;
-  }
+  const radius = 35;
+  if (d > radius) return;
 
-  if (p.kind === "food") st.backpack.food = (st.backpack.food || 0) + 1;
-  if (p.kind === "fuel") st.backpack.fuel = (st.backpack.fuel || 0) + 1;
-
+  addToBackpack(p.itemId, 1);
   markCollected(st, p.id);
 
-  // remove marker
   const m = pickupMarkers.get(p.id);
   if (m){ map.removeLayer(m); pickupMarkers.delete(p.id); }
 
-  updateBackpack(els.backpackCounts, st);
+  renderMapHUD();
+  renderBackpackOverlay();
   refreshPickups();
 }
 
-function doTimeJumpAndRender(){
-  const res = applyTimeJump(st);
-  if (res.dtHours > 0.01 || res.note){
-    // optional: show a small log in console
-    console.log("Time jump:", res);
+function autoCollectNearbyPickups(){
+  if (!myPos || pickupMarkers.size === 0 || !st.home) return;
+  const radius = 35;
+  const myLL = L.latLng(myPos.lat, myPos.lng);
+
+  const pickups = getDailyPickups(st, 450);
+  const byId = new Map(pickups.map(p => [p.id, p]));
+
+  for (const [id, marker] of pickupMarkers.entries()){
+    const d = myLL.distanceTo(marker.getLatLng());
+    if (d <= radius){
+      const p = byId.get(id);
+      if (p) collectPickup(p);
+    }
   }
-  saveState(st);
-  renderAll();
 }
 
-function renderAll(){
-  setHomeUI();
-  updateStatus(els.status, st, myPos);
-  updateBackpack(els.backpackCounts, st);
-
-  const hasHome = !!st.home;
-const nearHome = withinHome(st, myPos);
-
-// Family view should always be accessible
-renderFamily(els.familyList, els.familyNote, st, hasHome);
-
-// Only “deliver” is gated (you can choose: require nearHome or just hasHome)
-els.btnFamily.disabled = false;
-els.btnDeliver.disabled = !(hasHome && nearHome);
-
-
-  if (map) refreshPickups();
+// ---------- Family rendering ----------
+function ensureNames(){
+  let n = 1;
+  for (const p of st.family){
+    if (!p.name){
+      p.name = `Person ${n++}`;
+    }
+  }
 }
 
-function wireUI(){
-els.btnSetHomeHere.addEventListener("click", () => {
-  const cand = getBestHomeCandidate();
-  if (!cand){
-    alert("Click the map to pick a home location.");
+function renderFamily(){
+  ensureNames();
+  els.peopleLayer.innerHTML = "";
+
+  // positions across the log
+  const slots = [
+    { x: 20,  y: 18 },
+    { x: 40,  y: 18 },
+    { x: 60,  y: 18 },
+    { x: 80,  y: 18 }
+  ];
+
+  st.family.slice(0, MAX_PEOPLE).forEach((p, i) => {
+    const spot = slots[i] || slots[slots.length-1];
+
+    const div = document.createElement("div");
+    div.className = "person";
+    div.style.left = `${spot.x}%`;
+    div.style.top  = `38%`;
+    div.style.transform = "translate(-50%, -50%)";
+
+    div.dataset.pid = p.id;
+
+    // drop target for FOOD
+    div.addEventListener("dragover", (e) => { e.preventDefault(); div.classList.add("dropHint"); });
+    div.addEventListener("dragleave", () => div.classList.remove("dropHint"));
+    div.addEventListener("drop", (e) => {
+      e.preventDefault();
+      div.classList.remove("dropHint");
+      const itemId = e.dataTransfer.getData("text/itemId");
+      if (!itemId) return;
+
+      const def = getItemDef(itemId);
+      if (!def) return;
+
+      // Only food affects person hunger in this prototype
+      // (you can tag items later)
+      if (def.id.startsWith("food_")){
+        consumeBackpackItem(itemId, 1);
+        p.hunger = clamp(p.hunger + Number(def.value || 0), 0, MAX_STAT);
+        saveState(st);
+        renderFamily();
+        renderBackpackOverlay();
+        renderMapHUD();
+      }
+    });
+
+    const name = document.createElement("div");
+    name.className = "name";
+    name.textContent = p.name;
+
+    const avatar = document.createElement("div");
+    avatar.className = "avatar";
+
+    const bars = document.createElement("div");
+    bars.className = "bars";
+
+    const hLine = document.createElement("div");
+    hLine.className = "barline";
+    hLine.innerHTML = `<span style="color:white">Hunger</span><span>${Math.round(p.hunger)}</span>`;
+
+    const hBar = document.createElement("div");
+    hBar.className = "bar";
+    const hFill = document.createElement("div");
+    hFill.className = "fill";
+    hFill.style.width = `${(p.hunger / MAX_STAT) * 100}%`;
+    hBar.appendChild(hFill);
+
+    const cLine = document.createElement("div");
+    cLine.className = "barline";
+    cLine.style.marginTop = "6px";
+    cLine.innerHTML = `<span style="color:white">Cold</span><span>${Math.round(p.cold)}</span>`;
+
+    const cBar = document.createElement("div");
+    cBar.className = "bar";
+    const cFill = document.createElement("div");
+    cFill.className = "fill";
+    cFill.style.width = `${(p.cold / MAX_STAT) * 100}%`;
+    cBar.appendChild(cFill);
+
+    bars.appendChild(hLine);
+    bars.appendChild(hBar);
+    bars.appendChild(cLine);
+    bars.appendChild(cBar);
+  
+   div.appendChild(name);
+    div.appendChild(bars);
+   
+    div.appendChild(avatar);
+  
+
+    els.peopleLayer.appendChild(div);
+  });
+
+  els.fireFuelVal.textContent = String(Math.round(st.fireFuel || 0));
+}
+
+function consumeBackpackItem(itemId, qty){
+  const cur = st.backpack.items[itemId] || 0;
+  const next = Math.max(0, cur - qty);
+  if (next === 0) delete st.backpack.items[itemId];
+  else st.backpack.items[itemId] = next;
+  saveState(st);
+}
+
+function renderMapHUD(){
+  // simple count display
+  const items = st.backpack.items || {};
+  const total = Object.values(items).reduce((a,b)=>a+b,0);
+  els.backpackCounts.textContent = `Items: ${total}`;
+}
+
+// ---------- Backpack overlay (drag source) ----------
+function openBackpack(){
+  els.bpOverlay.style.display = "block";
+  renderBackpackOverlay();
+}
+function closeBackpack(){
+  els.bpOverlay.style.display = "none";
+}
+
+function renderBackpackOverlay(){
+  const items = st.backpack.items || {};
+  els.bpGrid.innerHTML = "";
+
+  const entries = Object.entries(items);
+  if (entries.length === 0){
+    const d = document.createElement("div");
+    d.className = "small";
+    d.textContent = "Backpack is empty.";
+    els.bpGrid.appendChild(d);
     return;
   }
-  st.home = { lat: cand.lat, lng: cand.lng };
-  st._centeredOnce = true;
-  saveState(st);
-  if (map) map.setView([st.home.lat, st.home.lng], 16);
-  renderAll();
-  });
 
-  els.btnAddMember.addEventListener("click", () => {
-    addFamilyMember(st);
-    renderAll();
-  });
+  for (const [itemId, qty] of entries){
+    const def = getItemDef(itemId);
+    if (!def) continue;
 
-els.btnMoveHome.addEventListener("click", () => {
-  const cand = getBestHomeCandidate();
-  if (!cand){
-    alert("Click the map to pick a home location.");
-    return;
+    const card = document.createElement("div");
+    card.className = "bpItem";
+    card.draggable = true;
+
+    card.addEventListener("dragstart", (e) => {
+      e.dataTransfer.setData("text/itemId", itemId);
+      // Helpful for some browsers
+      e.dataTransfer.effectAllowed = "move";
+    });
+
+    const img = document.createElement("img");
+    img.src = def.displayImg || def.pickupImg || "assets/food1.png";
+    img.alt = def.name || itemId;
+
+    const q = document.createElement("div");
+    q.className = "bpQty";
+    q.textContent = `x${qty}`;
+
+    card.appendChild(img);
+    card.appendChild(q);
+
+    els.bpGrid.appendChild(card);
   }
-  st.home = { lat: cand.lat, lng: cand.lng };
-  st._centeredOnce = true;
+}
+
+// ---------- Fire drop (fuel) ----------
+function initFireDrop(){
+  const el = els.fireDrop;
+
+  el.addEventListener("dragover", (e) => { e.preventDefault(); el.classList.add("dropHint"); });
+  el.addEventListener("dragleave", () => el.classList.remove("dropHint"));
+  el.addEventListener("drop", (e) => {
+    e.preventDefault();
+    el.classList.remove("dropHint");
+
+    const itemId = e.dataTransfer.getData("text/itemId");
+    if (!itemId) return;
+    const def = getItemDef(itemId);
+    if (!def) return;
+
+    if (def.id.startsWith("fuel_")){
+      consumeBackpackItem(itemId, 1);
+
+      // store fuel + warm everyone a bit (prototype rule)
+      st.fireFuel = (st.fireFuel || 0) + Number(def.value || 0);
+
+      const n = Math.max(1, st.family.length);
+      const warmPer = Number(def.value || 0) / n;
+
+      for (const p of st.family){
+        p.cold = clamp(p.cold + warmPer, 0, MAX_STAT);
+      }
+
+      saveState(st);
+      renderFamily();
+      renderBackpackOverlay();
+      renderMapHUD();
+    }
+  });
+}
+
+// ---------- Buttons / flows ----------
+function addPerson(){
+  if (st.family.length >= MAX_PEOPLE) return;
+
+  const id = "p_" + Math.random().toString(16).slice(2) + "_" + Date.now().toString(16);
+  st.family.push({
+    id,
+    name: `Person ${st.family.length + 1}`,
+    hunger: MAX_STAT,
+    cold: MAX_STAT,
+    equipment: { hat: null, shirt: null } // placeholder for clothes
+  });
   saveState(st);
+  renderFamily();
+}
 
+function openHomeSettings(){
   setActiveView("viewMap");
-  showSetupPanel(true);    // 👈 SHOW setup panel explicitly
-  if (map) map.setView([st.home.lat, st.home.lng], 16);
-  renderAll();
-});
-
-
-
-  els.walkFreq.addEventListener("change", () => {
-    setWalkFreq(st, els.walkFreq.value);
-    doTimeJumpAndRender(); // apply new rate going forward
-  });
-
-  els.btnFamily.addEventListener("click", () => {
-    // only if near home (button is disabled otherwise)
-    setActiveView("viewFamily");
-    renderAll();
-  });
-
-els.btnMap.addEventListener("click", () => {
-  setActiveView("viewMap");
-  showSetupPanel(false);   // 👈 hide when gathering
+  showSetupPanel(true);
+  showWalkFreq(true);
   if (map) map.invalidateSize();
-  renderAll();
-});
-
-
-  els.btnDeliver.addEventListener("click", () => {
-    const canAccess = withinHome(st, myPos);
-    if (!canAccess){
-      alert("You must be at home to deliver.");
-      return;
-    }
-    const res = deliverBackpack(st);
-    alert(res.msg);
-    renderAll();
-  });
-
-  // time-jump when returning to tab
-  document.addEventListener("visibilitychange", () => {
-    if (!document.hidden){
-      doTimeJumpAndRender();
-    }
-  });
-
-  // periodic tick while open (keeps stats moving a little)
-  setInterval(() => {
-    // update lastTick so stats drift over time while open, too
-    doTimeJumpAndRender();
-  }, 60_000);
 }
 
+function setHomeFromCandidate(){
+  const cand = getBestHomeCandidate();
+  if (!cand){
+    alert("Click the map to pick a home location.");
+    return;
+  }
+  st.home = { lat: cand.lat, lng: cand.lng };
+  st._centeredOnce = true;
+  saveState(st);
+  setHomeMarker();
+  if (map) map.setView([st.home.lat, st.home.lng], 16);
+  refreshPickups();
+}
+
+// ---------- Time jump ----------
+function doTimeJump(){
+  applyTimeJump(st);
+  saveState(st);
+  renderFamily();
+}
+
+// ---------- GPS ----------
 function startGeolocation(){
   if (!navigator.geolocation){
-    alert("Geolocation not supported in this browser.");
+    console.warn("Geolocation not supported.");
     return;
   }
-
   navigator.geolocation.watchPosition(
     (pos) => {
       myPos = { lat: pos.coords.latitude, lng: pos.coords.longitude };
       setMyMarker();
-      updateStatus(els.status, st, myPos);
 
-      // If home is set and map not centered, you can keep the view around player a bit:
-      // (leave it simple: only auto-center the first time)
       if (!st._centeredOnce && map){
         map.setView([myPos.lat, myPos.lng], 16);
         st._centeredOnce = true;
         saveState(st);
       }
 
-      renderAll();
+      refreshPickups();
+      autoCollectNearbyPickups();
     },
-    (err) => {
-      console.warn(err);
-      alert("GPS error. Make sure location is allowed.");
-    },
-    {
-      enableHighAccuracy: true,
-      maximumAge: 2000,
-      timeout: 15000
-    }
+    (err) => console.warn(err),
+    { enableHighAccuracy: true, maximumAge: 2000, timeout: 15000 }
   );
 }
 
-// Boot
-initMap();
-showSetupPanel(false);
-wireUI();
+// ---------- Boot ----------
+(async function boot(){
+  // defaults
+  els.walkFreq.value = st.walkFreq || "normal";
 
-// Load spawn tables first, then start gameplay
-(async () => {
-  try {
-    await loadSpawnTables();
-  } catch (e) {
-    console.error(e);
-    alert("Failed to load item tables (food.json / fuel.json). Check /content/ paths.");
-  }
+  initMap();
+  setHomeMarker();
 
-  doTimeJumpAndRender();
+  // view buttons
+  els.btnToFamily.addEventListener("click", () => setActiveView("viewFamily"));
+  els.btnToMap.addEventListener("click", () => {
+    setActiveView("viewMap");
+    showSetupPanel(false);
+    showWalkFreq(false);
+    if (map) map.invalidateSize();
+  });
+
+  // family buttons
+  els.btnAddMember.addEventListener("click", addPerson);
+  els.btnMoveHome.addEventListener("click", openHomeSettings);
+
+  // setup panel
+  els.btnSetHomeHere.addEventListener("click", setHomeFromCandidate);
+  els.walkFreq.addEventListener("change", () => {
+    st.walkFreq = els.walkFreq.value;
+    saveState(st);
+    doTimeJump();
+  });
+
+  // backpack overlay
+  els.btnBackpack.addEventListener("click", openBackpack);
+  els.bpClose.addEventListener("click", closeBackpack);
+  els.bpOverlay.addEventListener("click", (e) => {
+    if (e.target === els.bpOverlay) closeBackpack();
+  });
+
+  initFireDrop();
+
+  // load tables
+  await loadSpawnTables();
+  await loadCatalog();
+
+  // start on family view
+  setActiveView("viewFamily");
+
+  // hide setup unless invoked
+  showSetupPanel(false);
+  showWalkFreq(false);
+
+  // initial renders
+  renderMapHUD();
+  renderFamily();
+  refreshPickups();
+
+  // time jump on resume + periodic
+  doTimeJump();
+  document.addEventListener("visibilitychange", () => { if (!document.hidden) doTimeJump(); });
+  setInterval(doTimeJump, 60_000);
+
   startGeolocation();
 })();
