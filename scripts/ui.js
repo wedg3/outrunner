@@ -32,9 +32,11 @@ export function updateBackpack(el, st){
 }
 
 export function renderFamily(listEl, noteEl, st, canAccess){
-  noteEl.textContent = canAccess
-    ? "You are at home. Add members, then deliver items to raise hunger/cold."
-    : "You must be at home to view/manage the family.";
+  if (!st.home){
+  noteEl.textContent = "No home set yet. Tap the house icon to set your home location.";
+} else {
+  noteEl.textContent = "Family view is always available. To deliver items, return home.";
+}
 
   listEl.innerHTML = "";
   if (!st.family.length){
