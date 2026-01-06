@@ -1,0 +1,29 @@
+{
+  "type": "food",
+  "items": [
+    {
+      "id": "food_beans",
+      "name": "Canned beans",
+      "rarity": 0.9,
+      "value": 18,
+      "pickupImg": "assets/food1.png",
+      "displayImg": "assets/food1.png"
+    },
+    {
+      "id": "food_crackers",
+      "name": "Crackers",
+      "rarity": 0.7,
+      "value": 10,
+      "pickupImg": "assets/food1.png",
+      "displayImg": "assets/food1.png"
+    },
+    {
+      "id": "food_chocolate",
+      "name": "Chocolate bar",
+      "rarity": 0.25,
+      "value": 8,
+      "pickupImg": "assets/food1.png",
+      "displayImg": "assets/food1.png"
+    }
+  ]
+}

@@ -1,0 +1,113 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
+  <title>Zombie Family Prototype</title>
+
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+
+  <style>
+    html, body { height:100%; margin:0; font-family: system-ui, -apple-system, Segoe UI, Roboto, sans-serif; }
+    #app { height:100%; display:flex; flex-direction:column; }
+    #topbar{
+      padding:10px; display:flex; gap:8px; flex-wrap:wrap; align-items:center;
+      border-bottom:1px solid #ddd;
+    }
+    button { padding:8px 10px; cursor:pointer; }
+    select { padding:7px 10px; }
+    #status { font-size: 13px; opacity: .85; }
+
+    #views { flex:1; position:relative; }
+    .view { position:absolute; inset:0; display:none; }
+    .view.active { display:block; }
+
+    #map { height:100%; }
+    #family { padding:12px; overflow:auto; }
+    .row { display:flex; gap:12px; align-items:center; margin:10px 0; padding:10px; border:1px solid #ddd; }
+    .avatar { width:48px; height:48px; object-fit:contain; border:1px solid #ccc; }
+    .bars { flex:1; }
+    .barlabel { font-size:12px; opacity:.85; margin:4px 0 2px; }
+    .bar { height:10px; background:#eee; border:1px solid #ddd; }
+    .bar > div { height:100%; background:#333; width:50%; }
+
+    #backpackPanel{
+      position:absolute; right:10px; bottom:10px;
+      background: rgba(255,255,255,.9);
+      border:1px solid #ddd; padding:10px; min-width:180px;
+      z-index: 1000;
+    }
+    #setupPanel{
+      position:absolute; left:10px; bottom:10px;
+      background: rgba(255,255,255,.9);
+      border:1px solid #ddd; padding:10px; max-width:320px;
+      z-index:1001;
+    }
+    .small { font-size: 12px; opacity: .8; }
+    .pill { display:inline-block; padding:3px 8px; border:1px solid #ccc; border-radius:999px; font-size:12px; }
+  </style>
+</head>
+<body>
+<div id="app">
+  <div id="topbar">
+    <button id="btnFamily">Family view</button>
+    <button id="btnMap">Go out and gather</button>
+    <button id="btnDeliver">Deliver backpack → family</button>
+
+    <label style="display:flex;align-items:center;gap:6px;">
+      Walk frequency:
+      <select id="walkFreq">
+        <option value="easy">Rarely (slow decay)</option>
+        <option value="normal" selected>Normal</option>
+        <option value="hard">Often (fast decay)</option>
+      </select>
+    </label>
+
+    <span id="status">…</span>
+  </div>
+
+  <div id="views">
+    <div id="viewMap" class="view active">
+      <div id="map"></div>
+
+      <div id="setupPanel">
+        <div><strong>Setup</strong></div>
+        <div class="small">1) Allow GPS. 2) Set home at your current location.</div>
+        <div style="height:8px"></div>
+        <button id="btnSetHomeHere">Set home here</button>
+        <span id="homeInfo" class="pill">Home: not set</span>
+        <div style="height:8px"></div>
+        <div class="small">Pickups respawn daily. Collected ones stay gone until tomorrow.</div>
+      </div>
+
+      <div id="backpackPanel">
+        <div><strong>Backpack</strong></div>
+        <div id="backpackCounts" class="small">Food: 0<br/>Fuel: 0</div>
+        <div class="small" style="margin-top:8px" id="spawnInfo"></div>
+      </div>
+    </div>
+
+    <div id="viewFamily" class="view">
+      <div id="family">
+        <div style="display:flex; align-items:center; justify-content:space-between; gap:10px;">
+          <h3 style="margin:0;">Family</h3>
+
+          <div style="display:flex; gap:8px; align-items:center;">
+            <button id="btnMoveHome" title="Set home to your current position" style="padding:6px 8px;">
+              <img src="assets/housemove.png" alt="Move home" style="width:22px;height:22px;vertical-align:middle;">
+            </button>
+            <button id="btnAddMember">+ Add member</button>
+          </div>
+        </div>
+
+        <div class="small" id="familyNote" style="margin-top:8px;"></div>
+        <div id="familyList" style="margin-top:10px;"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script type="module" src="scripts/app.js"></script>
+</body>
+</html>

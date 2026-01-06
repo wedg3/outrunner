@@ -1,0 +1,29 @@
+{
+  "type": "fuel",
+  "items": [
+    {
+      "id": "fuel_firewood",
+      "name": "Firewood bundle",
+      "rarity": 0.85,
+      "value": 12,
+      "pickupImg": "assets/fuel1.png",
+      "displayImg": "assets/fuel1.png"
+    },
+    {
+      "id": "fuel_charcoal",
+      "name": "Charcoal",
+      "rarity": 0.45,
+      "value": 18,
+      "pickupImg": "assets/fuel1.png",
+      "displayImg": "assets/fuel1.png"
+    },
+    {
+      "id": "fuel_gascan",
+      "name": "Gasoline can",
+      "rarity": 0.12,
+      "value": 40,
+      "pickupImg": "assets/fuel1.png",
+      "displayImg": "assets/fuel1.png"
+    }
+  ]
+}
