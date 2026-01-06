@@ -204,12 +204,16 @@ function renderAll(){
   updateStatus(els.status, st, myPos);
   updateBackpack(els.backpackCounts, st);
 
-  const canAccess = withinHome(st, myPos);
-  renderFamily(els.familyList, els.familyNote, st, canAccess);
+  const hasHome = !!st.home;
+const nearHome = withinHome(st, myPos);
 
-  // enable/disable family/deliver buttons based on home proximity
-  els.btnFamily.disabled = !canAccess;
-  els.btnDeliver.disabled = !canAccess;
+// Family view should always be accessible
+renderFamily(els.familyList, els.familyNote, st, hasHome);
+
+// Only “deliver” is gated (you can choose: require nearHome or just hasHome)
+els.btnFamily.disabled = false;
+els.btnDeliver.disabled = !(hasHome && nearHome);
+
 
   if (map) refreshPickups();
 }
