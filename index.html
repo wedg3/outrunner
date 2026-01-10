@@ -53,13 +53,31 @@
     select{ padding:6px 8px; }
 
     /* ---------- FAMILY VIEW ---------- */
-    #viewFamily{
-      background: url("assets/forest.gif") center/cover no-repeat;
-      overflow:hidden;
-    }
-    #familyStage{
-      position:absolute; inset:0;
-    }
+/* ---------- FAMILY VIEW (fixed coordinate stage) ---------- */
+#viewFamily{
+  background: url("assets/forest.gif") center/cover no-repeat;
+  overflow:hidden;
+}
+
+/* wrapper that fills screen */
+#familyStageWrap{
+  position:absolute; inset:0;
+  overflow:hidden;
+}
+
+/* the "design resolution" stage */
+#familyStage{
+  position:absolute;
+  left:50%; top:50%;
+  width:1920px;
+  height:1080px;
+  transform: translate(-50%, -50%) scale(var(--stageScale, 1));
+  transform-origin: center center;
+}
+
+/* keep all family UI positioned in stage coordinates now */
+#peopleLayer{ position:absolute; inset:0; }
+
 
     /* top buttons */
     #btnAddMember{
@@ -138,11 +156,32 @@
       font-size: 12px;
       font-weight: 600;
     }
-    .person .avatar{
-      width:72px; height:110px;
-      background: url("assets/person.png") center/contain no-repeat;
-      
-    }
+.person .avatar{
+  position: relative;
+  width: 140px;
+  height: 220px;
+  background: none;
+}
+
+.person .base{
+  position:absolute; inset:0;
+  background: url("assets/person.png") center/contain no-repeat;
+  pointer-events:none;
+}
+
+/* clothing layers */
+.person .equip{
+  position:absolute;
+  left:0; top:0;
+  width:100%; height:100%;
+  pointer-events:none;
+}
+.person .equip img{
+  position:absolute;
+  transform: translate(-50%, -50%);
+  width:auto; height:auto;
+}
+
     .bars{
       width:110px;
       
@@ -299,7 +338,8 @@
   </div>
 
   <!-- FAMILY VIEW -->
-  <div id="viewFamily" class="view active">
+<div id="viewFamily" class="view active">
+  <div id="familyStageWrap">
     <div id="familyStage">
       <button id="btnAddMember">+ Add person</button>
 
@@ -334,7 +374,7 @@
 
       <!-- people container -->
       <div id="peopleLayer"></div>
-    </div>
+    </div></div>
   </div>
 </div>
 

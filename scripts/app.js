@@ -281,6 +281,23 @@ function autoCollectNearbyPickups(){
   }
 }
 
+function updateFamilyStageScale(){
+  const wrap = document.getElementById("familyStageWrap");
+  const stage = document.getElementById("familyStage");
+  if (!wrap || !stage) return;
+
+  const DESIGN_W = 1920;
+  const DESIGN_H = 1080;
+
+  const r = wrap.getBoundingClientRect();
+  const scale = Math.min(r.width / DESIGN_W, r.height / DESIGN_H);
+
+  stage.style.setProperty("--stageScale", String(scale));
+}
+window.addEventListener("resize", updateFamilyStageScale);
+window.addEventListener("orientationchange", updateFamilyStageScale);
+
+
 // ---------- Family rendering ----------
 function ensureNames(){
   let n = 1;
@@ -295,31 +312,44 @@ function renderFamily(){
   ensureNames();
   els.peopleLayer.innerHTML = "";
 
-  // positions across the log
+  // --- Fixed "design-space" coordinates (assumes your #familyStage is a fixed stage that gets scaled) ---
+  // If you haven't added the fixed-stage scaling yet, you can temporarily switch these to % again.
   const slots = [
-    { x: 20,  y: 18 },
-    { x: 40,  y: 18 },
-    { x: 60,  y: 18 },
-    { x: 80,  y: 18 }
+    { x: 520,  y: 420 },
+    { x: 820,  y: 420 },
+    { x: 1120, y: 420 },
+    { x: 1420, y: 420 }
   ];
 
+  // Per-person clothing anchors inside the avatar box (tune these later)
+  // Avatar box is 72x110 in your current CSS.
+  const anchors = {
+    hat:      { x: 36, y: 14,  w: 58 },
+    shirt:    { x: 36, y: 46,  w: 70 },
+    pants:    { x: 36, y: 86,  w: 70 },
+    gloves:   { x: 36, y: 52,  w: 78 },
+    blanket:  { x: 36, y: 62,  w: 84 }
+  };
+
   st.family.slice(0, MAX_PEOPLE).forEach((p, i) => {
-    const spot = slots[i] || slots[slots.length-1];
+    const spot = slots[i] || slots[slots.length - 1];
 
     const div = document.createElement("div");
     div.className = "person";
-    div.style.left = `${spot.x}%`;
-    div.style.top  = `38%`;
-    div.style.transform = "translate(-50%, -50%)";
-
     div.dataset.pid = p.id;
 
-    // drop target for FOOD
+    // NOTE: pixel placement (strict). If you still use % layout, change to `${spot.x}%` etc.
+    div.style.left = `${spot.x}px`;
+    div.style.top  = `${spot.y}px`;
+    div.style.transform = "translate(-50%, -50%)";
+
+    // drop target for FOOD (and later clothes)
     div.addEventListener("dragover", (e) => { e.preventDefault(); div.classList.add("dropHint"); });
     div.addEventListener("dragleave", () => div.classList.remove("dropHint"));
     div.addEventListener("drop", (e) => {
       e.preventDefault();
       div.classList.remove("dropHint");
+
       const itemId = e.dataTransfer.getData("text/itemId");
       if (!itemId) return;
 
@@ -327,10 +357,13 @@ function renderFamily(){
       if (!def) return;
 
       // Only food affects person hunger in this prototype
-      // (you can tag items later)
-      if (def.id.startsWith("food_")){
+      // (Later: allow clothes by checking category/slot and setting p.equipment)
+      if (String(def.id || "").startsWith("food_")){
+        if (!st.backpack.items[itemId]) return;
+
         consumeBackpackItem(itemId, 1);
         p.hunger = clamp(p.hunger + Number(def.value || 0), 0, MAX_STAT);
+
         saveState(st);
         renderFamily();
         renderBackpackOverlay();
@@ -338,13 +371,54 @@ function renderFamily(){
       }
     });
 
+    // name
     const name = document.createElement("div");
     name.className = "name";
     name.textContent = p.name;
 
+    // avatar "rig" (base + equipment layers)
     const avatar = document.createElement("div");
     avatar.className = "avatar";
+    avatar.style.position = "relative";
 
+    const base = document.createElement("div");
+    base.style.position = "absolute";
+    base.style.inset = "0";
+    base.style.background = 'url("assets/person.png") center/contain no-repeat';
+    base.style.pointerEvents = "none";
+
+    const equip = document.createElement("div");
+    equip.style.position = "absolute";
+    equip.style.inset = "0";
+    equip.style.pointerEvents = "none";
+
+    // Optional equipment (won't do anything until you start setting p.equipment = {hat: "id", ...})
+    if (p.equipment){
+      for (const slot of Object.keys(anchors)){
+        const itemId = p.equipment[slot];
+        if (!itemId) continue;
+
+        const def = getItemDef(itemId);
+        if (!def) continue;
+
+        const a = anchors[slot];
+        const img = document.createElement("img");
+        img.src = def.displayImg || def.pickupImg || "";
+        img.style.position = "absolute";
+        img.style.left = `${a.x}px`;
+        img.style.top = `${a.y}px`;
+        img.style.width = `${a.w}px`;
+        img.style.transform = "translate(-50%, -50%)";
+        img.draggable = false;
+
+        equip.appendChild(img);
+      }
+    }
+
+    avatar.appendChild(base);
+    avatar.appendChild(equip);
+
+    // bars
     const bars = document.createElement("div");
     bars.className = "bars";
 
@@ -375,12 +449,11 @@ function renderFamily(){
     bars.appendChild(hBar);
     bars.appendChild(cLine);
     bars.appendChild(cBar);
-  
-   div.appendChild(name);
+
+    // assemble
+    div.appendChild(name);
     div.appendChild(bars);
-   
     div.appendChild(avatar);
-  
 
     els.peopleLayer.appendChild(div);
   });
@@ -595,6 +668,8 @@ function startGeolocation(){
     showWalkFreq(false);
     if (map) map.invalidateSize();
   });
+
+  updateFamilyStageScale();
 
   // family buttons
   els.btnAddMember.addEventListener("click", addPerson);
