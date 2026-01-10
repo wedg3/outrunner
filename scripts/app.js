@@ -114,6 +114,106 @@ function setHomeMarker(){
   }
 }
 
+let drag = null; // { itemId, ghostEl, sourceEl }
+
+function startDragItem(e, itemId){
+  const def = getItemDef(itemId);
+  if (!def) return;
+
+  const src = e.currentTarget;
+  src.classList.add("dragging");
+
+  // Create ghost
+  const ghost = document.createElement("div");
+  ghost.className = "dragGhost";
+  const img = document.createElement("img");
+  img.src = def.displayImg || def.pickupImg || "assets/food1.png";
+  img.alt = def.name || itemId;
+  ghost.appendChild(img);
+  document.body.appendChild(ghost);
+
+  drag = { itemId, ghostEl: ghost, sourceEl: src };
+
+  moveGhost(e);
+
+  window.addEventListener("pointermove", onDragMove, { passive: false });
+  window.addEventListener("pointerup", onDragEnd, { passive: false, once: true });
+}
+
+function moveGhost(e){
+  if (!drag) return;
+  drag.ghostEl.style.left = `${e.clientX}px`;
+  drag.ghostEl.style.top  = `${e.clientY}px`;
+}
+
+function onDragMove(e){
+  if (!drag) return;
+  e.preventDefault();
+  moveGhost(e);
+
+  // Optional: highlight current drop target
+  const el = document.elementFromPoint(e.clientX, e.clientY);
+  highlightDropTarget(el);
+}
+
+function onDragEnd(e){
+  if (!drag) return;
+  e.preventDefault();
+
+  // Remove highlighting
+  clearDropHighlights();
+
+  // Determine drop target
+  const el = document.elementFromPoint(e.clientX, e.clientY);
+  const ok = handleDropOnElement(drag.itemId, el);
+
+  // Cleanup
+  if (drag.sourceEl) drag.sourceEl.classList.remove("dragging");
+  if (drag.ghostEl) drag.ghostEl.remove();
+  drag = null;
+
+  window.removeEventListener("pointermove", onDragMove);
+
+  // If dropped nowhere useful, do nothing (fine)
+}
+
+function handleDropOnElement(itemId, el){
+  if (!el) return false;
+
+  // Walk up the DOM tree to find a drop zone
+  const personEl = el.closest?.(".person");
+  const fireEl = el.closest?.("#fireDrop");
+
+  const def = getItemDef(itemId);
+  if (!def) return false;
+
+  if (personEl){
+    const pid = personEl.dataset.pid;
+    return applyItemToPerson(itemId, pid);
+  }
+
+  if (fireEl){
+    return applyItemToFire(itemId);
+  }
+
+  return false;
+}
+
+// --- optional highlighting ---
+function clearDropHighlights(){
+  document.querySelectorAll(".dropHint").forEach(n => n.classList.remove("dropHint"));
+}
+function highlightDropTarget(el){
+  clearDropHighlights();
+  if (!el) return;
+  const p = el.closest?.(".person");
+  const f = el.closest?.("#fireDrop");
+  if (p) p.classList.add("dropHint");
+  else if (f) f.classList.add("dropHint");
+}
+
+
+
 // ---------- Spawns ----------
 function refreshPickups(){
   if (!st.home) return;
@@ -301,6 +401,59 @@ function renderMapHUD(){
   els.backpackCounts.textContent = `Items: ${total}`;
 }
 
+function applyItemToPerson(itemId, personId){
+  const def = getItemDef(itemId);
+  if (!def) return false;
+
+  // Decide what counts as food.
+  // For now: treat items from food.json as food by checking id prefix.
+  // Better later: add "category" field in JSON.
+  const isFood = String(def.id || "").startsWith("food_");
+  if (!isFood) return false;
+
+  if (!st.backpack.items[itemId]) return false;
+
+  const p = st.family.find(x => x.id === personId);
+  if (!p) return false;
+
+  consumeBackpackItem(itemId, 1);
+  p.hunger = clamp(p.hunger + Number(def.value || 0), 0, MAX_STAT);
+
+  saveState(st);
+  renderFamily();
+  renderBackpackOverlay();
+  renderMapHUD();
+  return true;
+}
+
+function applyItemToFire(itemId){
+  const def = getItemDef(itemId);
+  if (!def) return false;
+
+  const isFuel = String(def.id || "").startsWith("fuel_");
+  if (!isFuel) return false;
+
+  if (!st.backpack.items[itemId]) return false;
+
+  consumeBackpackItem(itemId, 1);
+
+  st.fireFuel = (st.fireFuel || 0) + Number(def.value || 0);
+
+  const n = Math.max(1, st.family.length);
+  const warmPer = Number(def.value || 0) / n;
+  for (const p of st.family){
+    p.cold = clamp(p.cold + warmPer, 0, MAX_STAT);
+  }
+
+  saveState(st);
+  renderFamily();
+  renderBackpackOverlay();
+  renderMapHUD();
+  return true;
+}
+
+
+
 // ---------- Backpack overlay (drag source) ----------
 function openBackpack(){
   els.bpOverlay.style.display = "block";
@@ -329,17 +482,19 @@ function renderBackpackOverlay(){
 
     const card = document.createElement("div");
     card.className = "bpItem";
-    card.draggable = true;
+   
+    card.addEventListener("pointerdown", (e) => {
+    e.preventDefault();
+    startDragItem(e, itemId);
+  });
+  card.style.touchAction = "none";
 
-    card.addEventListener("dragstart", (e) => {
-      e.dataTransfer.setData("text/itemId", itemId);
-      // Helpful for some browsers
-      e.dataTransfer.effectAllowed = "move";
-    });
+
 
     const img = document.createElement("img");
     img.src = def.displayImg || def.pickupImg || "assets/food1.png";
     img.alt = def.name || itemId;
+img.draggable = false;
 
     const q = document.createElement("div");
     q.className = "bpQty";
@@ -352,41 +507,6 @@ function renderBackpackOverlay(){
   }
 }
 
-// ---------- Fire drop (fuel) ----------
-function initFireDrop(){
-  const el = els.fireDrop;
-
-  el.addEventListener("dragover", (e) => { e.preventDefault(); el.classList.add("dropHint"); });
-  el.addEventListener("dragleave", () => el.classList.remove("dropHint"));
-  el.addEventListener("drop", (e) => {
-    e.preventDefault();
-    el.classList.remove("dropHint");
-
-    const itemId = e.dataTransfer.getData("text/itemId");
-    if (!itemId) return;
-    const def = getItemDef(itemId);
-    if (!def) return;
-
-    if (def.id.startsWith("fuel_")){
-      consumeBackpackItem(itemId, 1);
-
-      // store fuel + warm everyone a bit (prototype rule)
-      st.fireFuel = (st.fireFuel || 0) + Number(def.value || 0);
-
-      const n = Math.max(1, st.family.length);
-      const warmPer = Number(def.value || 0) / n;
-
-      for (const p of st.family){
-        p.cold = clamp(p.cold + warmPer, 0, MAX_STAT);
-      }
-
-      saveState(st);
-      renderFamily();
-      renderBackpackOverlay();
-      renderMapHUD();
-    }
-  });
-}
 
 // ---------- Buttons / flows ----------
 function addPerson(){
@@ -493,7 +613,7 @@ function startGeolocation(){
     if (e.target === els.bpOverlay) closeBackpack();
   });
 
-  initFireDrop();
+
 
   // load tables
   await loadSpawnTables();

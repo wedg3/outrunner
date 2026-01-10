@@ -225,6 +225,33 @@
       outline: 3px dashed rgba(255,255,255,.75);
       outline-offset: 6px;
     }
+
+    .dragGhost{
+  position: fixed;
+  z-index: 99999;
+  width: 64px;
+  height: 64px;
+  pointer-events: none;
+  transform: translate(-50%, -50%);
+  filter: drop-shadow(0 10px 18px rgba(0,0,0,.25));
+}
+.dragGhost img{
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+.dragging{
+  opacity: .6;
+}
+
+.bpItem img,
+.dragGhost img{
+  -webkit-user-drag: none;
+  user-drag: none;
+  pointer-events: none; /* ensures pointerdown hits the card, not the img */
+}
+
+
   </style>
 </head>
 <body>
