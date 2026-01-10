@@ -160,21 +160,23 @@ function onDragEnd(e){
   if (!drag) return;
   e.preventDefault();
 
-  // Remove highlighting
   clearDropHighlights();
 
-  // Determine drop target
+  // ✅ HIT-TEST THROUGH OVERLAY:
+  const overlay = document.getElementById("bpOverlay");
+  const oldDisplay = overlay ? overlay.style.display : null;
+
+  if (overlay) overlay.style.display = "none"; // temporarily hide dim overlay
   const el = document.elementFromPoint(e.clientX, e.clientY);
+  if (overlay) overlay.style.display = oldDisplay ?? "block";
+
   const ok = handleDropOnElement(drag.itemId, el);
 
-  // Cleanup
   if (drag.sourceEl) drag.sourceEl.classList.remove("dragging");
   if (drag.ghostEl) drag.ghostEl.remove();
   drag = null;
 
   window.removeEventListener("pointermove", onDragMove);
-
-  // If dropped nowhere useful, do nothing (fine)
 }
 
 function handleDropOnElement(itemId, el){
